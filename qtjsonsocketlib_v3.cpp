@@ -42,6 +42,44 @@ bool QtJsonSocketLib_v3::make_QTcpSocket()
     return !Socket.isNull();
 }
 
+bool QtJsonSocketLib_v3::SwapSocket(QTcpSocket *sock)
+{
+    if(Socket.isNull() == false)
+    {
+        if (Socket->isOpen() == true)
+        {
+            Socket->close();
+        }
+        Socket.clear();
+    }
+
+    Socket.reset(sock);
+
+    if(EmitEvent == true)
+    {
+        QObject::connect(Socket.data(), SIGNAL(readyRead()), this, SLOT(OnRecvEventFromSocket()));
+    }
+
+    QObject::connect(Socket.data(), SIGNAL(disconnected()), this, SLOT(OnDisconnectEventFromSocket()));
+}
+
+bool QtJsonSocketLib_v3::SetSocket(QTcpSocket *sock)
+{
+    if(Socket.isNull() == false)
+    {
+       return false;
+    }
+
+    if (Socket->isOpen() == false)
+    {
+        return false;
+    }
+
+    Socket.reset(sock);
+
+    return true;
+}
+
 void QtJsonSocketLib_v3::set_socket(QTcpSocket *sock)
 {
     if(Socket.isNull() == false)
@@ -86,7 +124,7 @@ bool QtJsonSocketLib_v3::send_QByteArray(QByteArray arr)
 {
     try
     {
-        if(Socket->isOpen() == false)
+        if(Socket->state() != QAbstractSocket::ConnectedState)
         {
             throw QtJsonSocketError::Connect;
         }

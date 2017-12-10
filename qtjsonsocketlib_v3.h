@@ -59,6 +59,10 @@ public:
 
     virtual bool make_QTcpSocket() override;
 
+    virtual bool SwapSocket(QTcpSocket* sock);
+
+    virtual bool SetSocket(QTcpSocket *sock);
+
     virtual void set_socket(QTcpSocket* sock) override;
 
     virtual QTcpSocket *get_socket() override;

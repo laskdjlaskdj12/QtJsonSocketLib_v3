@@ -66,7 +66,8 @@ private slots:
 
         QVERIFY(TestTemplateServer->GetConnectSocket()->is_connect());
 
-        Socket->disconnect_server();
+        Socket->get_socket()->disconnectFromHost();
+
         Socket.clear();
     }
 
@@ -90,7 +91,9 @@ private slots:
 
         Socket->disconnect_socket();
 
-        QVERIFY(TestTemplateServer->GetConnectSocket().isNull());
+        QThread::msleep(100);
+
+        QVERIFY(TestTemplateServer->GetConnectSocket()->is_connect() == false);
 
         Socket.clear();
     }
@@ -115,7 +118,9 @@ private slots:
 
         QThread::msleep(100);
 
-        QVERIFY(!TestTemplateServer->GetConnectSocket().isNull());
+        QVERIFY(!TestTemplateServer->GetConnectSocket()->is_connect() == false);
+
+        QVERIFY(!TestTemplateServer->GetRecvObj().isEmpty());
 
         QVERIFY(TestTemplateServer->GetRecvObj() == SendObject);
 

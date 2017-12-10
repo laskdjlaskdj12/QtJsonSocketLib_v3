@@ -225,6 +225,11 @@ void Qt_Json_Socket_Lib::disconnect_server()
 
     qDebug()<<"[Info] : disconnecting_server";
 
+    if(sock__ == nullptr)
+    {
+        return;
+    }
+
     sock__->close ();
 }
 
@@ -232,13 +237,22 @@ void Qt_Json_Socket_Lib::disconnect_socket()
 {
     qDebug()<<"[Info] : disconnect_socket";
 
-    sock__->close ();
+    if(sock__ == nullptr)
+    {
+        return;
+    }
+
+    sock__->disconnectFromHost();
 }
 
 void Qt_Json_Socket_Lib::delete_QTcpSocket()
 {
-    sock__->deleteLater ();
+    if(sock__ == nullptr)
+    {
+        return;
+    }
 
+    sock__->deleteLater();
 }
 
 
