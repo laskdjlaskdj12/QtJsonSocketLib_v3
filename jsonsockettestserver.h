@@ -13,78 +13,87 @@ public:
 
     TestServer()
     {
+        server = QSharedPointer<QTcpServer>::create();
+
+        connect(server.data(), SIGNAL(newConnection()), this, SLOT(onConnect()));
     }
 
     ~TestServer()
     {
-        server->close();
+        server.clear();
+
+        disconnect(server.data(), SIGNAL(newConnection()), this, SLOT(onConnect()));
     }
 
-    inline QSharedPointer<Qt_Json_Socket_Lib> GetConnectSocket()
+
+    QSharedPointer<QTcpSocket> GetSocket()
     {
-        return lib;
+        return socket;
     }
 
-    inline QJsonObject GetRecvObj()
-    {
-        return RecvRequest;
-    }
+signals:
+    void OnConnectSignal();
+    void OnRecvSignal(QByteArray);
+    void OnSendSingal();
+    void OnDisconnectSignal();
 
 public slots:
     inline void onStart()
     {
-        server = QSharedPointer<QTcpServer>::create();
-
-        connect(server.data(), SIGNAL(newConnection()), this, SLOT(onConnect()));
-
         server->listen(QHostAddress::Any, 7071);
+    }
+
+    inline void onFinished()
+    {
+        if(socket.isNull() == false)
+        {
+            socket->disconnectFromHost();
+            socket.clear();
+        }
+
+        server->close();
     }
 
     inline void onConnect()
     {
-        if(!lib.isNull())
+        socket = QSharedPointer<QTcpSocket>(server->nextPendingConnection());
+
+        if(socket.isNull() )
         {
-            if(lib->is_connect())
-            {
-                lib->disconnect_socket();
-            }
-
-            lib->delete_QTcpSocket();
-
-            lib.clear();
+            qDebug()<<"QTCpSocket Alloc Error";
+            return;
         }
 
-        lib = QSharedPointer<Qt_Json_Socket_Lib>::create();
-        lib->set_socket(server->nextPendingConnection());
+        connect(socket.data(), SIGNAL(readyRead()), this, SLOT(onRecv()));
+        connect(socket.data(), SIGNAL(disconnected()), this, SLOT(onDisconnect()));
 
-        lib->set_connect_timeout(2000);
-        lib->set_recv_timeout(-1);
-        lib->set_send_timeout(2000);
-
-        connect(lib->get_socket(), SIGNAL(disconnected()), this, SLOT(onDisconnect()));
-
-        onRecv();
-
+        emit OnConnectSignal();
         qDebug()<<"Connect is clear";
     }
 
     inline void onRecv()
     {
-        qDebug()<<"Recv by Request Socket";
+        QByteArray ReadBase64Size = socket->read(sizeof(unsigned int));
 
-        lib->get_socket()->waitForBytesWritten(-1);
+        qDebug()<<"Read Size : " + QString::number (ReadBase64Size.toInt());
 
-        QByteArray SizeByte = lib->get_socket()->read(sizeof(unsigned int));
+        unsigned int ReadSize = static_cast<unsigned int>(ReadBase64Size.toInt());
 
-        unsigned int readSize = static_cast<unsigned int>(SizeByte.toInt());
+        QByteArray Base64Source = socket->read(ReadSize);
 
-        QByteArray ReadBase64Source = lib->get_socket()->read(readSize);
+        emit OnRecvSignal(Base64Source);
 
-        QByteArray ReadJsonSource = QByteArray::fromBase64(ReadBase64Source);
+        if(Base64Source.isNull())
+        {
+            qDebug()<<"Can't Read Base64Source : " + socket->errorString();
+            return;
+        }
+
+        QByteArray ReadJsonSource = QByteArray::fromBase64(Base64Source);
 
         if(ReadJsonSource.isEmpty())
         {
-            qDebug()<<"[Debug] : Recv QByteArray is fail : " + lib->get_socket()->errorString();
+            qDebug()<<"[Debug] : Recv QByteArray is fail : " + socket->errorString();
             return;
         }
 
@@ -92,7 +101,7 @@ public slots:
 
         if(RecvJsonDoc.isEmpty())
         {
-            qDebug()<<"[Debug] : Recv JsonDoc is fail : " + lib->get_socket()->errorString();
+            qDebug()<<"[Debug] : Recv JsonDoc is fail : " + socket->errorString();
             return;
         }
 
@@ -101,37 +110,33 @@ public slots:
         if(RecvRequest.find("Reply") == RecvRequest.end())
         {
             qDebug()<<"[Debug] :RecvByteArray : " + RecvJsonDoc.toJson();
+            return;
         }
 
         if(RecvRequest["Reply"].toBool() == true)
         {
-            lib->send_Json(RecvRequest);
+            qDebug()<<"[Debug] :Send Reply : " + RecvJsonDoc.toJson();
+
+            emit OnSendSingal();
+
+            if (socket->write(QString::number(Base64Source.size()).toUtf8(), sizeof(unsigned int)) < 0
+                    || socket->write(Base64Source) < 0)
+            {
+                qDebug()<<"[Debug] : Socket Error" + socket->errorString();
+            }
         }
     }
 
     inline void onDisconnect()
     {
-        if(lib.isNull())
-        {
-            return;
-        }
-
-        if(!lib->get_socket())
-        {
-            return;
-        }
-
-        if(lib->is_connect())
-        {
-            lib->disconnect_socket();
-        }
+       emit OnDisconnectSignal();
     }
 
 private:
     QJsonObject RecvRequest;
 
     QSharedPointer<QTcpServer> server;
-    QSharedPointer<Qt_Json_Socket_Lib> lib;
+    QSharedPointer<QTcpSocket> socket;
 };
 
 #endif // JSONSOCKETTESTSERVER_H

@@ -162,7 +162,7 @@ QByteArray QtJsonSocketLib_v3::recv_QByteArray()
 {
     try
     {
-        if(Socket->isOpen() == false)
+        if(Socket->state() != QAbstractSocket::ConnectedState)
         {
             throw QtJsonSocketError::Connect;
         }
@@ -190,9 +190,7 @@ QByteArray QtJsonSocketLib_v3::recv_QByteArray()
 
         RecvBinarySize = static_cast<unsigned int>(RecvSourceSize.toInt());
 
-        Socket->read(RecvBinarySize).isEmpty();
-
-        RecvSource = Socket->readAll();
+        RecvSource = Socket->read(RecvBinarySize);
 
         if(RecvSource.isEmpty() == true)
         {

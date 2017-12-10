@@ -21,19 +21,24 @@ public:
 
         TestTemplateServer->moveToThread(TestThread.data());
         connect(TestThread.data(), SIGNAL(started()), TestTemplateServer.data(), SLOT(onStart()));
-
+        connect(TestThread.data(), SIGNAL(finished()), TestTemplateServer.data(), SLOT(onFinished()));
         TestThread->start();
 
         QtJsonSocketLib::DebugLog::ShowDebugMessage = true;
     }
     ~QtJsonSocketRefactory()
     {
+        TestThread->exit();
+        TestTemplateServer.clear();
+        TestThread.clear();
+
         TestTemplateServer.clear();
     }
 
 protected:
     QSharedPointer<TestServer> TestTemplateServer;
     QSharedPointer<QThread> TestThread;
+
 
 private slots:
 
@@ -50,6 +55,9 @@ private slots:
 
     inline void ConnectTest()
     {
+        QSignalSpy ConnectSignal(TestTemplateServer.data(), &TestServer::OnConnectSignal);
+        QSignalSpy DisconnectSignal(TestTemplateServer.data(), &TestServer::OnDisconnectSignal);
+
         QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(true, false);
 
         QVERIFY(Socket->make_QTcpSocket());
@@ -60,19 +68,20 @@ private slots:
 
         QVERIFY(Socket->is_connect());
 
-        QThread::msleep(100);
-
-        QVERIFY(!TestTemplateServer->GetConnectSocket().isNull());
-
-        QVERIFY(TestTemplateServer->GetConnectSocket()->is_connect());
+        QVERIFY(ConnectSignal.wait(1000));
 
         Socket->get_socket()->disconnectFromHost();
+
+        QVERIFY(DisconnectSignal.wait(1000) );
 
         Socket.clear();
     }
 
     inline void DisconnectTest()
     {
+        QSignalSpy ConnectSignal(TestTemplateServer.data(), &TestServer::OnConnectSignal);
+        QSignalSpy DisconnectSignal(TestTemplateServer.data(), &TestServer::OnDisconnectSignal);
+
         QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(true, false);
 
         QVERIFY(Socket->make_QTcpSocket());
@@ -83,23 +92,22 @@ private slots:
 
         QVERIFY(Socket->is_connect());
 
-        QThread::msleep(100);
-
-        QVERIFY(!TestTemplateServer->GetConnectSocket().isNull());
-
-        QVERIFY(TestTemplateServer->GetConnectSocket()->is_connect());
+        QVERIFY(ConnectSignal.wait(1000));
 
         Socket->disconnect_socket();
 
-        QThread::msleep(100);
-
-        QVERIFY(TestTemplateServer->GetConnectSocket()->is_connect() == false);
+        QVERIFY(DisconnectSignal.wait(1000));
 
         Socket.clear();
     }
 
     inline void SendTest()
     {
+        QSignalSpy ConnectSignal(TestTemplateServer.data(), &TestServer::OnConnectSignal);
+        QSignalSpy DisconnectSignal(TestTemplateServer.data(), &TestServer::OnDisconnectSignal);
+        QSignalSpy RecvSignal(TestTemplateServer.data(), &TestServer::OnRecvSignal);
+        QSignalSpy SendSignal(TestTemplateServer.data(), &TestServer::OnSendSingal);
+
         QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(true, false);
 
         QVERIFY(Socket->make_QTcpSocket());
@@ -109,6 +117,9 @@ private slots:
         Socket->connect_server("127.0.0.1", 7071);
 
         QVERIFY(Socket->is_connect());
+
+        QVERIFY(ConnectSignal.wait(1000));
+
 
         QJsonObject SendObject;
 
@@ -116,19 +127,30 @@ private slots:
 
         QVERIFY(Socket->send_Json(SendObject));
 
-        QThread::msleep(100);
+        QVERIFY(RecvSignal.wait(1000));
 
-        QVERIFY(!TestTemplateServer->GetConnectSocket()->is_connect() == false);
 
-        QVERIFY(!TestTemplateServer->GetRecvObj().isEmpty());
 
-        QVERIFY(TestTemplateServer->GetRecvObj() == SendObject);
+        QList<QVariant> RecvSignalFromTestServer = RecvSignal.takeFirst();
+
+        QVERIFY (!RecvSignalFromTestServer.at(0).toByteArray().isEmpty());
+
+        QJsonDocument Doc = QJsonDocument::fromJson(QByteArray::fromBase64(RecvSignalFromTestServer.at(0).toByteArray()));
+
+        QVERIFY (!Doc.isEmpty());
+
+        QVERIFY (Doc.object() == SendObject);
 
         Socket.clear();
     }
 
     inline void RecvTest()
     {
+        QSignalSpy ConnectSignal(TestTemplateServer.data(), &TestServer::OnConnectSignal);
+        QSignalSpy DisconnectSignal(TestTemplateServer.data(), &TestServer::OnDisconnectSignal);
+        QSignalSpy RecvSignal(TestTemplateServer.data(), &TestServer::OnRecvSignal);
+        QSignalSpy SendSignal(TestTemplateServer.data(), &TestServer::OnSendSingal);
+
         QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(true, false);
 
         QVERIFY(Socket->make_QTcpSocket());
@@ -139,30 +161,35 @@ private slots:
 
         QVERIFY(Socket->is_connect());
 
+        QVERIFY(ConnectSignal.wait(1000));
+
+        QVERIFY(TestTemplateServer->GetSocket()->state() == QAbstractSocket::ConnectedState);
+
+
         QJsonObject SendObject;
 
         SendObject["Reply"] = true;
 
         QVERIFY(Socket->send_Json(SendObject));
 
-        QJsonObject RecvObject;
+        QVERIFY(RecvSignal.wait());
 
-        RecvObject = Socket->RecvJson();
+        QVERIFY(SendSignal.count() > 0);
 
-        QVERIFY(!RecvObject.isEmpty());
+        QJsonObject RecvJson = Socket->RecvJson();
 
-        QVERIFY(RecvObject == SendObject);
+        QVERIFY(RecvJson.isEmpty() == false);
 
-        QVERIFY(!TestTemplateServer->GetConnectSocket().isNull());
+        QVERIFY(RecvJson == SendObject);
 
-        QVERIFY(TestTemplateServer->GetRecvObj() == SendObject);
+        Socket->disconnect_socket();
 
         Socket.clear();
     }
 
     inline void RecvSignalTest()
     {
-        QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(false, true);
+        /*QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(false, true);
 
         QSignalSpy RecvSignalSpy (Socket.data(), SIGNAL(OnRecvEvent()));
 
@@ -182,12 +209,12 @@ private slots:
 
         QVERIFY(RecvSignalSpy.wait());
 
-        Socket.clear();
+        Socket.clear();*/
     }
 
     inline void DisconnectSignalTest()
     {
-        QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(false, true);
+        /*QSharedPointer<QtJsonSocketLib_v3> Socket = QSharedPointer<QtJsonSocketLib_v3>::create(false, true);
 
         QSignalSpy DisconnectSignalSpy (Socket.data(), SIGNAL(OnDisconnectEvent()));
 
@@ -207,7 +234,7 @@ private slots:
 
         QVERIFY(DisconnectSignalSpy.wait());
 
-        Socket.clear();
+        Socket.clear();*/
     }
 };
 
