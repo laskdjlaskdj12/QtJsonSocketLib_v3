@@ -50,6 +50,10 @@ bool QtJsonSocketLib_v3::SwapSocket(QTcpSocket *sock)
         {
             Socket->close();
         }
+
+        QObject::disconnect(Socket.data(), SIGNAL(readyRead()), this, SLOT(OnRecvEventFromSocket()));
+        QObject::disconnect(Socket.data(), SIGNAL(disconnected()), this, SLOT(OnDisconnectEventFromSocket()));
+
         Socket.clear();
     }
 
@@ -88,7 +92,12 @@ void QtJsonSocketLib_v3::set_socket(QTcpSocket *sock)
         {
             Socket->close();
         }
+
+        QObject::disconnect(Socket.data(), SIGNAL(readyRead()), this, SLOT(OnRecvEventFromSocket()));
+        QObject::disconnect(Socket.data(), SIGNAL(disconnected()), this, SLOT(OnDisconnectEventFromSocket()));
+
         Socket.clear();
+
     }
 
     Socket.reset(sock);
@@ -99,10 +108,10 @@ void QtJsonSocketLib_v3::set_socket(QTcpSocket *sock)
 
     if(EmitEvent == true)
     {
-        QObject::connect(Socket.data(), SIGNAL(readyRead()), this, SLOT(OnRecvEventFromSocket()));
+        QObject::connect(Socket.data(), &QTcpSocket::readyRead, this, &QtJsonSocketLib_v3::OnRecvEventFromSocket);
     }
 
-    QObject::connect(Socket.data(), SIGNAL(disconnected()), this, SLOT(OnDisconnectEventFromSocket()));
+    QObject::connect(Socket.data(), &QTcpSocket::disconnected, this, &QtJsonSocketLib_v3::OnDisconnectEventFromSocket);
 }
 
 QTcpSocket *QtJsonSocketLib_v3::get_socket()

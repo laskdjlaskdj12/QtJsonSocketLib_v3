@@ -117,19 +117,19 @@ public slots:
         {
             qDebug()<<"[Debug] :Send Reply : " + RecvJsonDoc.toJson();
 
-            emit OnSendSingal();
-
             if (socket->write(QString::number(Base64Source.size()).toUtf8(), sizeof(unsigned int)) < 0
                     || socket->write(Base64Source) < 0)
             {
                 qDebug()<<"[Debug] : Socket Error" + socket->errorString();
             }
+
+            emit OnSendSingal();
         }
     }
 
     inline void onDisconnect()
     {
-       emit OnDisconnectSignal();
+        emit OnDisconnectSignal();
     }
 
 private:
